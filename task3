@@ -1,0 +1,107 @@
+import sqlite3
+import hashlib
+import math
+
+# ----------------------------
+# Database Setup
+# ----------------------------
+conn = sqlite3.connect(":memory:")  # in-memory DB
+cursor = conn.cursor()
+
+# Tables
+cursor.execute("""
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL
+)
+""")
+cursor.execute("""
+CREATE TABLE posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+# ----------------------------
+# Helper Functions
+# ----------------------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def register(username, password):
+    try:
+        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
+                       (username, hash_password(password)))
+        conn.commit()
+        print(f"✅ User '{username}' registered successfully!")
+    except sqlite3.IntegrityError:
+        print("⚠️ Username already exists!")
+
+def login(username, password):
+    cursor.execute("SELECT * FROM users WHERE username=? AND password=?", 
+                   (username, hash_password(password)))
+    return cursor.fetchone()
+
+def create_post(title, content):
+    cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
+    conn.commit()
+
+def search_posts(keyword):
+    cursor.execute("SELECT * FROM posts WHERE title LIKE ? OR content LIKE ?", 
+                   (f"%{keyword}%", f"%{keyword}%"))
+    return cursor.fetchall()
+
+def paginate_posts(page, per_page=2):
+    cursor.execute("SELECT COUNT(*) FROM posts")
+    total_posts = cursor.fetchone()[0]
+    total_pages = math.ceil(total_posts / per_page)
+    
+    offset = (page - 1) * per_page
+    cursor.execute("SELECT * FROM posts LIMIT ? OFFSET ?", (per_page, offset))
+    posts = cursor.fetchall()
+    
+    return posts, total_pages
+
+# ----------------------------
+# Demo Run (Simulating Task-3)
+# ----------------------------
+print("🚀 Advanced Features Implementation (Search + Pagination + UI)\n")
+
+# Register & Login
+register("haritha", "mypassword")
+user = login("haritha", "mypassword")
+
+if user:
+    print(f"✅ Logged in as {user[1]}\n")
+
+    # Create sample posts
+    create_post("Python Basics", "Learn about variables, loops, and functions.")
+    create_post("Advanced Python", "Dive into decorators, generators, and OOP.")
+    create_post("Database Handling", "How to use SQLite in Python.")
+    create_post("Web Development", "Building CRUD apps with Flask or Django.")
+    create_post("Data Science", "Introduction to Pandas and NumPy.")
+
+    # ---- Pagination Demo ----
+    print("\n📑 Paginated Posts (2 per page):")
+    page = 1
+    while True:
+        posts, total_pages = paginate_posts(page)
+        print(f"\n--- Page {page}/{total_pages} ---")
+        for p in posts:
+            print(f"ID:{p[0]} | Title:{p[1]} | Content:{p[2][:30]}...")
+        
+        if page >= total_pages:
+            break
+        page += 1
+
+    # ---- Search Demo ----
+    print("\n🔍 Searching for posts with keyword 'Python':")
+    results = search_posts("Python")
+    for r in results:
+        print(f"Found -> ID:{r[0]} | Title:{r[1]} | Content:{r[2][:40]}...")
+
+else:
+    print("❌ Login failed!")
